@@ -18,7 +18,6 @@ import java.time.LocalDate;
 @RestController
 public class FlightSearchSchedulerController {
 
-
     private static final Logger logger = LoggerFactory.getLogger(FlightSearchSchedulerController.class);
 
     @Autowired
@@ -27,6 +26,7 @@ public class FlightSearchSchedulerController {
     @PostMapping("/scheduleFlightSearch")
     public ResponseEntity scheduleEmail(@Valid @RequestBody FlightSearchRequest request) {
 
+        logger.info("Schedule Flight Search");
 
         Error error = validateRequest(request);
 

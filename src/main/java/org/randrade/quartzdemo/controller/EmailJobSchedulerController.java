@@ -29,6 +29,8 @@ public class EmailJobSchedulerController {
     @PostMapping("/scheduleEmail")
     public ResponseEntity<ScheduleEmailResponse> scheduleEmail(@Valid @RequestBody ScheduleEmailRequest scheduleEmailRequest){
 
+        logger.info("Schedule Email..");
+
         ZonedDateTime dateTime = ZonedDateTime.of(scheduleEmailRequest.getDateTime(), scheduleEmailRequest.getTimeZone());
 
         if(dateTime.isBefore(ZonedDateTime.now())) {
