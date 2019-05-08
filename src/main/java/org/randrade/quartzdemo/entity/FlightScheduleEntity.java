@@ -26,6 +26,8 @@ public class FlightScheduleEntity {
 
     private Date outboundDate;
 
+    private String session;
+
     @OneToMany(
             mappedBy = "flightSchedule",
             cascade = CascadeType.ALL,
@@ -96,6 +98,14 @@ public class FlightScheduleEntity {
 
     public void setPriceRates(List<PriceRateEntity> priceRates) {
         this.priceRates = priceRates;
+    }
+
+    public String getSession() {
+        return session;
+    }
+
+    public void setSession(String session) {
+        this.session = session;
     }
 }
 

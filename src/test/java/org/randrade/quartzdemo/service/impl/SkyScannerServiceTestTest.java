@@ -1,3 +1,5 @@
+package org.randrade.quartzdemo.service.impl;
+
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.JsonNode;
 import com.mashape.unirest.http.Unirest;
@@ -5,16 +7,17 @@ import com.mashape.unirest.http.exceptions.UnirestException;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.Test;
+import org.randrade.quartzdemo.payload.*;
 import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -22,6 +25,11 @@ import static org.junit.Assert.assertThat;
 
 
 public class SkyScannerServiceTestTest {
+
+    private JSONArray places;
+    private Map<Integer, SkyscannerPlaceData> skyscannerPlaceData;
+    private JSONArray carriers;
+    private Map<Integer, SkyscannerCarrierData> skyscannerCarrierData;
 
 
     @Test
@@ -86,11 +94,15 @@ public class SkyScannerServiceTestTest {
     public void testUnirest() throws UnirestException {
 
 
+
         String url = "https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/pricing/v1.0";
+        String rapidApiHost = "skyscanner-skyscanner-flight-search-v1.p.rapidapi.com";
+        String rapidApiKey = "48e90d683emsh832f24b745fa793p1ea4e7jsnf4381c3f6d91";
+
 
         HttpResponse<JsonNode> jsonResponse = Unirest.post(url)
-                .header("X-RapidAPI-Host", "skyscanner-skyscanner-flight-search-v1.p.rapidapi.com")
-                .header("X-RapidAPI-Key", "48e90d683emsh832f24b745fa793p1ea4e7jsnf4381c3f6d91")
+                .header("X-RapidAPI-Host", rapidApiHost)
+                .header("X-RapidAPI-Key", rapidApiKey)
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("accept", "application/json")
                 //.queryString("apiKey", "123")
@@ -132,16 +144,22 @@ public class SkyScannerServiceTestTest {
                 .asJson();
 
 
-        List<SkyscannerData> list = new ArrayList<>();
+        List<SkyScannerData> list = new ArrayList<>();
 
         JsonNode body = jsonResponse2.getBody();
+        skyscannerPlaceData = new HashMap<>();
+        skyscannerCarrierData = new HashMap<>();
+
+        setPlaces((JSONArray) body.getObject().get("Places"));
+        setCarriers((JSONArray) body.getObject().get("Carriers"));
+
         JSONArray legs = (JSONArray) body.getObject().get("Legs");
 
         JSONArray itineraries = (JSONArray) body.getObject().get("Itineraries");
 
         for (int i=0; i < itineraries.length(); i++) {
 
-            SkyscannerData d = new SkyscannerData();
+            SkyScannerData d = new SkyScannerData();
             //d.setInboundLeg(new SkyscannerLegData());
             //d.setOutboundLeg(new SkyscannerLegData());
 
@@ -174,10 +192,24 @@ public class SkyScannerServiceTestTest {
 
         JSONArray carriers = (JSONArray) body.getObject().get("Carriers");
         JSONArray agents = (JSONArray) body.getObject().get("Agents");
-        JSONArray places = (JSONArray) body.getObject().get("Places");
 
 
+    }
 
+    public JSONArray getPlaces() {
+        return places;
+    }
+
+    public void setPlaces(JSONArray places) {
+        this.places = places;
+    }
+
+    public JSONArray getCarriers() {
+        return carriers;
+    }
+
+    public void setCarriers(JSONArray carriers) {
+        this.carriers = carriers;
     }
 
     private SkyscannerLegData getLegById(String legId, JSONArray legs) {
@@ -195,157 +227,85 @@ public class SkyScannerServiceTestTest {
                 leg.setDeparture(obj.getString("Departure"));
                 leg.setDuration(obj.getInt("Duration"));
 
-                leg.setDestinationStation(obj.getString("DestinationStation"));
-                leg.setOriginStation(obj.getString("OriginStation"));
+                leg.setDestinationStation(getPlacesByID(obj.getInt("DestinationStation")));
+                leg.setOriginStation(getPlacesByID(obj.getInt("OriginStation")));
 
-                leg.setCarriers(obj.getString("Carriers"));
+
+
+                JSONArray carriers = obj.getJSONArray("Carriers");
+                for (int t=0; t < carriers.length(); t++) {
+                    leg.getCarriers().add(getCarriersByID(carriers.getInt(t)));
+                }
+
+                JSONArray flight = obj.getJSONArray("FlightNumbers");
+                for (int j=0; j < flight.length(); j++) {
+
+                    JSONObject objFlight = flight .getJSONObject(j);
+                    leg.getFlightNumber().add(objFlight.getString("FlightNumber"));
+                }
 
                 return leg;
             }
+
         }
 
         return null;
     }
 
+    private SkyscannerCarrierData getCarriersByID(Integer carrierId) {
 
-    class SkyscannerData {
+        SkyscannerCarrierData result = skyscannerCarrierData.get(carrierId);
 
-        private SkyscannerLegData outboundLeg = new SkyscannerLegData();
-        private SkyscannerLegData inboundLeg = new SkyscannerLegData();
-        private List<SkyscannerPricingOptionData> pricingOptionDataList = new ArrayList<>();
+        if (result == null){
 
-        public SkyscannerLegData getOutboundLeg() {
-            return outboundLeg;
+            JSONArray carriers = getCarriers();
+
+            for (int j=0; j < carriers.length(); j++) {
+
+                JSONObject obj = carriers.getJSONObject(j);
+
+                Integer id = obj.getInt("Id");
+
+                if (carrierId.equals(id)){
+
+                    result = new SkyscannerCarrierData();
+                    result.setCode(obj.getString("Code"));
+                    result.setName(obj.getString("Name"));
+                    skyscannerCarrierData.put(id, result);
+
+                    return result;
+                }
+            }
         }
 
-        public void setOutboundLeg(SkyscannerLegData outboundLeg) {
-            this.outboundLeg = outboundLeg;
-        }
-
-        public SkyscannerLegData getInboundLeg() {
-            return inboundLeg;
-        }
-
-        public void setInboundLeg(SkyscannerLegData inboundLeg) {
-            this.inboundLeg = inboundLeg;
-        }
-
-        public List<SkyscannerPricingOptionData> getPricingOptionDataList() {
-            return pricingOptionDataList;
-        }
-
-        public void setPricingOptionDataList(List<SkyscannerPricingOptionData> pricingOptionDataList) {
-            this.pricingOptionDataList = pricingOptionDataList;
-        }
+        return result;
     }
 
-    class SkyscannerLegData{
+    private SkyscannerPlaceData getPlacesByID(Integer placeId) {
 
-        private String id;
-        private String originStation;
-        private String destinationStation;
-        private String departure;
-        private String arrival;
-        private int duration;
-        private String carriers;
+        SkyscannerPlaceData result = skyscannerPlaceData.get(placeId);
 
+        if (result == null){
 
-        public String getId() {
-            return id;
+            JSONArray places = getPlaces();
+            for (int j=0; j < places.length(); j++) {
+
+                JSONObject obj = places.getJSONObject(j);
+
+                Integer id = obj.getInt("Id");
+
+                if (placeId.equals(id)){
+
+                    result = new SkyscannerPlaceData();
+                    result.setCode(obj.getString("Code"));
+                    result.setName(obj.getString("Name"));
+                    skyscannerPlaceData.put(id, result);
+
+                    return result;
+                }
+            }
         }
 
-        public void setId(String id) {
-            this.id = id;
-        }
-
-        public String getOriginStation() {
-            return originStation;
-        }
-
-        public void setOriginStation(String originStation) {
-            this.originStation = originStation;
-        }
-
-        public String getDestinationStation() {
-            return destinationStation;
-        }
-
-        public void setDestinationStation(String destinationStation) {
-            this.destinationStation = destinationStation;
-        }
-
-        public String getDeparture() {
-            return departure;
-        }
-
-        public void setDeparture(String departure) {
-            this.departure = departure;
-        }
-
-        public String getArrival() {
-            return arrival;
-        }
-
-        public void setArrival(String arrival) {
-            this.arrival = arrival;
-        }
-
-        public int getDuration() {
-            return duration;
-        }
-
-        public void setDuration(int duration) {
-            this.duration = duration;
-        }
-
-        public String getCarriers() {
-            return carriers;
-        }
-
-        public void setCarriers(String carriers) {
-            this.carriers = carriers;
-        }
+        return result;
     }
-
-    class SkyscannerPricingOptionData {
-
-        private String agent;
-        private BigDecimal price;
-
-        public String getAgent() {
-            return agent;
-        }
-
-        public void setAgent(String agent) {
-            this.agent = agent;
-        }
-
-        public BigDecimal getPrice() {
-            return price;
-        }
-
-        public void setPrice(BigDecimal price) {
-            this.price = price;
-        }
-    }
-
-
-    /*
-    HttpResponse<JsonNode> response = Unirest.post("https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/pricing/v1.0")
-.header("X-RapidAPI-Host", "skyscanner-skyscanner-flight-search-v1.p.rapidapi.com")
-.header
-.header
-.field("inboundDate", "2019-09-10")
-.field("cabinClass", "business")
-.field("children", 0)
-.field("infants", 0)
-.field("country", "US")
-.field("currency", "USD")
-.field("locale", "en-US")
-.field("originPlace", "SFO-sky")
-.field("destinationPlace", "LHR-sky")
-.field("outboundDate", "2019-09-01")
-.field("adults", 1)
-.asJson();
-     */
 }

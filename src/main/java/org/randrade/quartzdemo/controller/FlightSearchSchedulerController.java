@@ -1,28 +1,27 @@
 package org.randrade.quartzdemo.controller;
 
-import org.quartz.Scheduler;
-import org.randrade.quartzdemo.entity.FlightDetailsEntity;
+import com.mashape.unirest.http.exceptions.UnirestException;
+import org.quartz.*;
 import org.randrade.quartzdemo.entity.FlightScheduleEntity;
-import org.randrade.quartzdemo.entity.PriceRateEntity;
+import org.randrade.quartzdemo.job.QueryFlightResultsJob;
 import org.randrade.quartzdemo.model.Error;
 import org.randrade.quartzdemo.model.FlightSearchRequest;
-import org.randrade.quartzdemo.repository.FlightDetailsRepository;
-import org.randrade.quartzdemo.repository.FlightScheduleRepository;
-import org.randrade.quartzdemo.repository.PriceRateRepository;
+import org.randrade.quartzdemo.service.SkyScannerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
-
-import java.math.BigDecimal;
-import java.sql.Date;
-import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
+
+import static org.quartz.DateBuilder.dateOf;
+import static org.quartz.SimpleScheduleBuilder.simpleSchedule;
 
 @RestController
 public class FlightSearchSchedulerController {
@@ -33,10 +32,8 @@ public class FlightSearchSchedulerController {
     private Scheduler scheduler;
 
     @Autowired
-    private FlightScheduleRepository repository;
+    private SkyScannerService service;
 
-    @Autowired
-    private FlightDetailsRepository detailsRepository;
 
     @PostMapping("/scheduleFlightSearch")
     public ResponseEntity scheduleEmail(@Valid @RequestBody FlightSearchRequest request) {
@@ -50,30 +47,70 @@ public class FlightSearchSchedulerController {
             return ResponseEntity.badRequest().body(error);
         }
 
-        PriceRateEntity price = new PriceRateEntity();
-        price.setPrice(BigDecimal.valueOf(132l));
+        try {
+            FlightScheduleEntity entity = service.createSession(request);
 
-        FlightScheduleEntity entity = new FlightScheduleEntity();
-        entity.setFlexibleDate(false);
-        entity.setInbound(request.getOriginPlace());
-        entity.setOutbound(request.getDestinationPlace());
-        entity.setInboundDate(Date.valueOf(request.getInboundDate()));
-        entity.setOutboundDate(Date.valueOf(request.getOutboundDate()));
-        entity.getPriceRates().add(price);
-
-        repository.save(entity);
+            if (entity != null && entity.getId() != null) {
 
 
-        FlightDetailsEntity detailsEntity = new FlightDetailsEntity();
-        detailsEntity.setCompany("LATAM");
-        detailsEntity.setFlightNumber("ABC123");
-        detailsEntity.getPriceRates().add(price);
+                JobDetail jobDetail3AM =  buildJobDetail(entity.getId());
+                Trigger trigger3AM = buildJobTrigger(jobDetail3AM, 3);
 
-        detailsRepository.save(detailsEntity);
+                JobDetail jobDetail9AM =  buildJobDetail(entity.getId());
+                Trigger trigger9AM = buildJobTrigger(jobDetail9AM, 9);
 
-        return ResponseEntity.ok().build();
+                JobDetail jobDetail4PM =  buildJobDetail(entity.getId());
+                Trigger trigger4PM = buildJobTrigger(jobDetail4PM, 16);
 
+                JobDetail jobDetail8PM =  buildJobDetail(entity.getId());
+                Trigger trigger8PM = buildJobTrigger(jobDetail8PM, 20);
+
+                scheduler.scheduleJob(jobDetail3AM, trigger3AM);
+                scheduler.scheduleJob(jobDetail9AM, trigger9AM);
+                scheduler.scheduleJob(jobDetail4PM, trigger4PM);
+                scheduler.scheduleJob(jobDetail8PM, trigger8PM);
+
+                return ResponseEntity.ok().build();
+
+            }
+
+        } catch (UnirestException e) {
+            e.printStackTrace();
+        } catch (SchedulerException e) {
+            e.printStackTrace();
+        }
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
+
+    private JobDetail buildJobDetail(Integer flightID) {
+
+        JobDataMap jobDataMap = new JobDataMap();
+
+        jobDataMap.put("flightID", flightID);
+
+        return JobBuilder.newJob(QueryFlightResultsJob.class)
+                .withIdentity(UUID.randomUUID().toString(), "flight-session-jobs")
+                .withDescription("Query Session results job")
+                .usingJobData(jobDataMap)
+                .storeDurably()
+                .build();
+    }
+
+    private Trigger buildJobTrigger(JobDetail jobDetail, int hour) {
+
+        return TriggerBuilder.newTrigger()
+                .forJob(jobDetail)
+                .withIdentity(jobDetail.getKey().getName(), "flight-session-triggers-" + hour)
+                .withDescription("Query Session results Trigger for hour " + hour)
+                .withSchedule(simpleSchedule()
+                        .withIntervalInHours(24)
+                        .withMisfireHandlingInstructionFireNow()
+                        .repeatForever())
+                .startAt(dateOf(hour,0,0))
+                .build();
+    }
+
 
     private Error validateRequest(FlightSearchRequest request) {
 
@@ -81,7 +118,7 @@ public class FlightSearchSchedulerController {
             return new Error("1000", "Inbound should be after now");
         }
 
-        if (request.getOutboundDate().isBefore(request.getInboundDate())) {
+        if (request.getInboundDate().isBefore(request.getOutboundDate())) {
             return new Error("1001", "Outbound date should be before Inbound date");
         }
 
