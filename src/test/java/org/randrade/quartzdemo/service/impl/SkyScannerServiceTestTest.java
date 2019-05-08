@@ -97,7 +97,7 @@ public class SkyScannerServiceTestTest {
 
         String url = "https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/pricing/v1.0";
         String rapidApiHost = "skyscanner-skyscanner-flight-search-v1.p.rapidapi.com";
-        String rapidApiKey = "48e90d683emsh832f24b745fa793p1ea4e7jsnf4381c3f6d91";
+        String rapidApiKey = "";
 
 
         HttpResponse<JsonNode> jsonResponse = Unirest.post(url)
@@ -135,7 +135,7 @@ public class SkyScannerServiceTestTest {
         String url2 = "https://skyscanner-skyscanner-flight-search-v1.p.rapidapi.com/apiservices/pricing/uk2/v1.0/";
         HttpResponse<JsonNode> jsonResponse2 = Unirest.get(url2 + session )
                 .header("X-RapidAPI-Host", "skyscanner-skyscanner-flight-search-v1.p.rapidapi.com")
-                .header("X-RapidAPI-Key", "48e90d683emsh832f24b745fa793p1ea4e7jsnf4381c3f6d91")
+                .header("X-RapidAPI-Key", "")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("accept", "application/json")
                 .queryString("sortType", "price")
