@@ -52,7 +52,7 @@ public class QueryFlightResultsJob extends QuartzJobBean {
 
         JobDataMap jobDataMap = jobExecutionContext.getMergedJobDataMap();
 
-        Integer flightID = jobDataMap.getIntegerFromString("flightID");
+        Integer flightID = Integer.valueOf(jobDataMap.getString("flightID"));
 
         if (!StringUtils.isEmpty(flightID)) {
 
